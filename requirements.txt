@@ -1,0 +1,5 @@
+paramiko>=3.4.0
+rich>=13.7.0
+questionary>=2.0.1
+pydantic>=2.7.0
+cryptography>=42.0.0
