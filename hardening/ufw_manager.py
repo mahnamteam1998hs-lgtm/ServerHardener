@@ -13,13 +13,19 @@ class UFWManager:
             return False
         return "active" in output.lower()
 
-    def install(self) -> bool:
-        output, error, exit_code = self.ssh.execute_sudo(
-            "apt-get update && apt-get install -y ufw"
+    def install(self):
+        output, error, exit_code = (
+            self.ssh.execute_sudo(
+                "apt-get update"
+            )
         )
+
         if exit_code != 0:
-            raise RuntimeError(f"UFW installation failed: {error}")
-        return True
+            return output, error, exit_code
+
+        return self.ssh.execute_sudo(
+            "apt-get install -y ufw"
+        )
 
     def enable(self) -> bool:
         output, error, exit_code = self.ssh.execute_sudo("ufw --force enable")
