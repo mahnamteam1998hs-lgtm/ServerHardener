@@ -1,6 +1,7 @@
 import questionary
 
 from pathlib import Path
+from datetime import datetime
 
 from core.ssh_manager import SSHManager
 
@@ -111,10 +112,26 @@ def ask_key_path(
         if key_path.is_dir():
 
             raise RuntimeError(
-                "SSH key path must be a file path, not a directory."
+                (
+                    "SSH key path must be a file "
+                    "path, not a directory."
+                )
             )
 
     return key_path
+
+
+def build_timestamped_key_path(
+    key_path: Path,
+) -> Path:
+
+    timestamp = datetime.now().strftime(
+        "%Y%m%d_%H%M%S"
+    )
+
+    return key_path.with_name(
+        f"{key_path.name}_{timestamp}"
+    )
 
 
 def setup_ssh_key(
@@ -127,36 +144,32 @@ def setup_ssh_key(
         ssh
     )
 
+    actual_key_path = key_path
+
     if force_regenerate:
 
-        if key_path.exists():
-            key_path.unlink()
-
-        pub_key_path = (
-            key_path.with_suffix(
-                ".pub"
+        actual_key_path = (
+            build_timestamped_key_path(
+                key_path
             )
         )
 
-        if pub_key_path.exists():
-            pub_key_path.unlink()
-
     if not manager.local_key_exists(
-        key_path
+        actual_key_path
     ):
 
         manager.generate_local_key(
-            key_path
+            actual_key_path
         )
 
     manager.upload_public_key_to_server(
-        key_path,
+        actual_key_path,
         ssh.username,
     )
 
     verified = (
         manager.verify_key_login(
-            key_path
+            actual_key_path
         )
     )
 
@@ -166,4 +179,4 @@ def setup_ssh_key(
             "SSH key verification failed."
         )
 
-    return True
+    return actual_key_path

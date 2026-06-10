@@ -129,7 +129,7 @@ try:
                 ssh.username,
             )
 
-        setup_ssh_key(
+        generated_key_path = setup_ssh_key(
             ssh,
             ssh_key_action["key_path"],
             force_regenerate=True,
@@ -139,11 +139,7 @@ try:
             connection["host"],
             connection["port"],
             connection["username"],
-            str(
-                ssh_key_action[
-                    "key_path"
-                ]
-            ),
+            str(generated_key_path),
         )
 
         ssh_key_enabled = True
@@ -163,7 +159,7 @@ try:
             "Configuring SSH Key"
         )
 
-        setup_ssh_key(
+        generated_key_path = setup_ssh_key(
             ssh,
             ssh_key_action["key_path"],
         )
@@ -172,11 +168,7 @@ try:
             connection["host"],
             connection["port"],
             connection["username"],
-            str(
-                ssh_key_action[
-                    "key_path"
-                ]
-            ),
+            str(generated_key_path),
         )
 
         ssh_key_enabled = True

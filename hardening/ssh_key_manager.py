@@ -25,7 +25,7 @@ class SSHKeyManager:
     def generate_local_key(
         self,
         private_key_path: Path,
-        comment: str = "server-hardener-key",
+        comment: str = "server-hardener-managed",
         passphrase: str = "",
     ) -> None:
 
@@ -56,14 +56,19 @@ class SSHKeyManager:
         username: str,
     ) -> str:
 
-        output, _, exit_code = self.ssh.execute(
-            f"getent passwd {username} | cut -d: -f6"
+        output, _, exit_code = (
+            self.ssh.execute(
+                f"getent passwd {username} | cut -d: -f6"
+            )
         )
 
         if exit_code != 0:
 
             raise RuntimeError(
-                f"Could not determine home directory for {username}"
+                (
+                    "Could not determine home "
+                    f"directory for {username}"
+                )
             )
 
         return output.strip()
@@ -103,22 +108,36 @@ class SSHKeyManager:
             f"{remote_home}/.ssh/authorized_keys"
         )
 
-        escaped_key = (
-            public_key.replace(
-                "'",
-                "'\"'\"'"
+        try:
+
+            content = (
+                self.ssh.read_remote_file(
+                    authorized_keys
+                )
             )
+
+        except FileNotFoundError:
+            return
+
+        lines = []
+
+        for line in content.splitlines():
+
+            if line.strip() != public_key:
+                lines.append(line)
+
+        new_content = "\n".join(lines)
+
+        if new_content:
+            new_content += "\n"
+
+        self.ssh.write_remote_file(
+            authorized_keys,
+            new_content,
         )
 
         self.ssh.execute(
-            (
-                f"if [ -f {authorized_keys} ]; then "
-                f"grep -Fvx '{escaped_key}' "
-                f"{authorized_keys} > {authorized_keys}.tmp; "
-                f"mv {authorized_keys}.tmp {authorized_keys}; "
-                f"chmod 600 {authorized_keys}; "
-                f"fi"
-            )
+            f"chmod 600 {authorized_keys}"
         )
 
     def upload_public_key_to_server(
@@ -134,8 +153,12 @@ class SSHKeyManager:
         )
 
         if not pub_key_path.exists():
+
             raise FileNotFoundError(
-                f"Public key not found: {pub_key_path}"
+                (
+                    "Public key not found: "
+                    f"{pub_key_path}"
+                )
             )
 
         remote_home = (
@@ -170,20 +193,37 @@ class SSHKeyManager:
                 f.read().strip()
             )
 
-        escaped_key = (
-            public_key.replace(
-                "'",
-                "'\"'\"'"
+        try:
+
+            content = (
+                self.ssh.read_remote_file(
+                    authorized_keys
+                )
             )
+
+        except FileNotFoundError:
+
+            content = ""
+
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip()
+        ]
+
+        if public_key not in lines:
+            lines.append(public_key)
+
+        new_content = (
+            "\n".join(lines)
         )
 
-        self.ssh.execute(
-            (
-                f"touch {authorized_keys}; "
-                f"if ! grep -Fxq '{escaped_key}' {authorized_keys}; then "
-                f"echo '{escaped_key}' >> {authorized_keys}; "
-                f"fi"
-            )
+        if new_content:
+            new_content += "\n"
+
+        self.ssh.write_remote_file(
+            authorized_keys,
+            new_content,
         )
 
         self.ssh.execute(
