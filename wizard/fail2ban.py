@@ -3,26 +3,61 @@ import questionary
 
 def ask_fail2ban_options(server_info):
 
-    if (
+    installed = (
         server_info.fail2ban_installed
-        and server_info.fail2ban_active
-    ):
-        status = "ACTIVE"
+    )
 
-    elif server_info.fail2ban_installed:
-        status = "INSTALLED"
+    active = (
+        server_info.fail2ban_active
+    )
+
+    if not installed:
+
+        action = questionary.select(
+            (
+                "Fail2Ban "
+                "[Installed: No] "
+                "[Active: No]"
+            ),
+            choices=[
+                "Install Only",
+                "Install and Enable",
+                "Skip",
+            ],
+        ).ask()
+
+    elif active:
+
+        action = questionary.select(
+            (
+                "Fail2Ban "
+                "[Installed: Yes] "
+                "[Active: Yes]"
+            ),
+            choices=[
+                "Keep Enabled",
+                "Disable Only",
+                "Uninstall (Keep Config)",
+                "Uninstall Completely",
+            ],
+        ).ask()
 
     else:
-        status = "NOT INSTALLED"
 
-    action = questionary.select(
-        f"Fail2Ban Status: {status}",
-        choices=[
-            "Install / Enable",
-            "Uninstall",
-        ]
-    ).ask()
+        action = questionary.select(
+            (
+                "Fail2Ban "
+                "[Installed: Yes] "
+                "[Active: No]"
+            ),
+            choices=[
+                "Enable",
+                "Keep Disabled",
+                "Uninstall (Keep Config)",
+                "Uninstall Completely",
+            ],
+        ).ask()
 
     return {
-        "action": action
+        "action": action,
     }

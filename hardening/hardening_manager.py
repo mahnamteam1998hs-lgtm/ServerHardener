@@ -30,6 +30,7 @@ class HardeningManager:
         if not self.ufw.is_installed():
             self.ufw.install()
 
+        # Always keep SSH accessible
         self.ufw.allow_ssh(
             self.server_info.ssh_port
         )
@@ -54,9 +55,16 @@ class HardeningManager:
 
         return status
 
-    def disable_firewall(self):
+    def disable_firewall(
+        self,
+        remove_rules: bool = False,
+    ):
 
         self.ufw.disable()
+
+        if remove_rules:
+
+            self.ufw.reset()
 
         self.server_info.firewall_enabled = False
 
@@ -72,9 +80,22 @@ class HardeningManager:
     # Fail2Ban
     # -------------------------
 
+    def install_fail2ban(self):
+
+        if not self.fail2ban.is_installed():
+
+            self.fail2ban.install()
+
+        self.server_info.fail2ban_installed = True
+
+        self.server_info.fail2ban_active = False
+
+        return "Fail2Ban installed"
+
     def enable_fail2ban(self):
 
         if not self.fail2ban.is_installed():
+
             self.fail2ban.install()
 
         self.fail2ban.enable()
@@ -86,6 +107,20 @@ class HardeningManager:
         self.server_info.fail2ban_active = True
 
         return "Fail2Ban enabled"
+
+    def disable_fail2ban(self):
+
+        if self.fail2ban.is_installed():
+
+            self.fail2ban.stop()
+
+            self.fail2ban.disable()
+
+        self.server_info.fail2ban_installed = True
+
+        self.server_info.fail2ban_active = False
+
+        return "Fail2Ban disabled"
 
     def uninstall_fail2ban(self):
 
@@ -102,3 +137,19 @@ class HardeningManager:
         self.server_info.fail2ban_active = False
 
         return "Fail2Ban removed"
+
+    def purge_fail2ban(self):
+
+        if self.fail2ban.is_installed():
+
+            self.fail2ban.stop()
+
+            self.fail2ban.disable()
+
+            self.fail2ban.purge()
+
+        self.server_info.fail2ban_installed = False
+
+        self.server_info.fail2ban_active = False
+
+        return "Fail2Ban purged"

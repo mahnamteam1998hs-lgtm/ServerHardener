@@ -78,21 +78,63 @@ class BackupManager:
 
     def verify_backup(self, backup_path):
 
-        required_files = [
-            "ssh.tar.gz",
-            "users.tar.gz",
-            "sudoers.tar.gz",
-        ]
+        archives = {
+            "ssh.tar.gz": [
+                "etc/ssh",
+            ],
+            "users.tar.gz": [
+                "etc/passwd",
+                "etc/group",
+                "etc/shadow",
+            ],
+            "sudoers.tar.gz": [
+                "etc/sudoers",
+                "etc/sudoers.d",
+            ],
+        }
 
-        for file_name in required_files:
+        for archive_name, required_entries in (
+            archives.items()
+        ):
 
+            archive_path = (
+                f"{backup_path}/{archive_name}"
+            )
+
+            # فایل وجود داشته باشد
             output, error, exit_code = (
                 self.ssh.execute_sudo(
-                    f"test -f {backup_path}/{file_name}"
+                    f"test -f {archive_path}"
                 )
             )
 
             if exit_code != 0:
                 return False
+
+            # آرشیو سالم باشد
+            output, error, exit_code = (
+                self.ssh.execute_sudo(
+                    f"tar -tzf {archive_path}"
+                )
+            )
+
+            if exit_code != 0:
+                return False
+
+            archive_contents = output.splitlines()
+
+            # محتویات ضروری وجود داشته باشند
+            for entry in required_entries:
+
+                found = any(
+                    item == entry
+                    or item == f"./{entry}"
+                    or item.startswith(f"{entry}/")
+                    or item.startswith(f"./{entry}/")
+                    for item in archive_contents
+                )
+
+                if not found:
+                    return False
 
         return True

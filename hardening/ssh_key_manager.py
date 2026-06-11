@@ -98,6 +98,17 @@ class SSHKeyManager:
                 f.read().strip()
             )
 
+        public_key_parts = (
+            public_key.split()
+        )
+
+        if len(public_key_parts) < 2:
+            return
+
+        public_key_data = (
+            public_key_parts[1]
+        )
+
         remote_home = (
             self.get_user_home(
                 remote_user
@@ -123,8 +134,18 @@ class SSHKeyManager:
 
         for line in content.splitlines():
 
-            if line.strip() != public_key:
-                lines.append(line)
+            line_parts = (
+                line.strip().split()
+            )
+
+            if (
+                len(line_parts) >= 2
+                and line_parts[1]
+                == public_key_data
+            ):
+                continue
+
+            lines.append(line)
 
         new_content = "\n".join(lines)
 
@@ -231,16 +252,22 @@ class SSHKeyManager:
         )
 
     def verify_key_login(
-        self,
-        private_key_path: Path,
+            self,
+            private_key_path: Path,
+            username: str | None = None,
     ) -> bool:
+
+        test_username = (
+                username
+                or self.ssh.username
+        )
 
         try:
 
             test_ssh = SSHManager(
                 host=self.ssh.host,
                 port=self.ssh.port,
-                username=self.ssh.username,
+                username=test_username,
                 private_key_path=private_key_path,
             )
 
@@ -258,8 +285,8 @@ class SSHKeyManager:
                 return False
 
             return (
-                output.strip()
-                == self.ssh.username
+                    output.strip()
+                    == test_username
             )
 
         except Exception:

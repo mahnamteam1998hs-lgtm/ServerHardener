@@ -108,25 +108,25 @@ class ServerDetector:
 
         # Fail2Ban
 
+        _, _, exit_code = (
+            self.ssh.execute(
+                "command -v fail2ban-client"
+            )
+        )
+
+        info.fail2ban_installed = (
+            exit_code == 0
+        )
+
         fail2ban_active, _, _ = (
             self.ssh.execute(
                 "systemctl is-active fail2ban"
             )
         )
 
-        _, _, exit_code = (
-            self.ssh.execute(
-                "systemctl status fail2ban --no-pager"
-            )
-        )
-
-        info.fail2ban_installed = (
-                exit_code == 0
-        )
-
         info.fail2ban_active = (
-                fail2ban_active.strip()
-                == "active"
+            fail2ban_active.strip()
+            == "active"
         )
 
         # SSH Key
@@ -142,5 +142,41 @@ class ServerDetector:
         info.backup_created = False
 
         info.backup_verified = False
+
+        users_output, _, _ = self.ssh.execute(
+            r"getent passwd | awk -F: '$7 !~ /(nologin|false)$/ {print $1}'"
+        )
+
+        info.users = [
+            user.strip()
+            for user in users_output.splitlines()
+            if user.strip()
+        ]
+
+        # Users
+
+        users_output, _, _ = (
+            self.ssh.execute(
+                r"getent passwd | awk -F: '$7 !~ /(nologin|false)$/ {print $1}'"
+            )
+        )
+
+        info.users = [
+            user.strip()
+            for user in users_output.splitlines()
+            if user.strip()
+        ]
+
+        admin_users_output, _, _ = (
+            self.ssh.execute(
+                "getent group sudo | cut -d: -f4"
+            )
+        )
+
+        info.admin_users = [
+            user.strip()
+            for user in admin_users_output.split(",")
+            if user.strip()
+        ]
 
         return info

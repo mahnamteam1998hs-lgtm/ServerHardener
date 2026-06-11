@@ -9,6 +9,10 @@ class ServerInfo(BaseModel):
 
     current_user: str = ""
 
+    users: list[str] = []
+
+    admin_users: list[str] = []
+
     ssh_port: int = 22
 
     ssh_service_active: bool = False

@@ -189,6 +189,17 @@ try:
 
     server_info = detector.detect()
 
+    progress.stop(
+        "Server Detected"
+    )
+
+    from core.user_manager import UserManager
+    from wizard.user_management import (
+        ask_user_management,
+        ask_new_admin_username,
+        ask_new_admin_password,
+    )
+
     server_info.ssh_key_enabled = (
         ssh_key_enabled
     )
@@ -197,9 +208,77 @@ try:
         ssh_key_verified
     )
 
-    progress.stop(
-        "Server Detected"
+    user_options = (
+        ask_user_management(
+            server_info
+        )
     )
+
+    if (
+            user_options["action"]
+            == "Create Admin User"
+    ):
+
+        user_manager = UserManager(
+            ssh
+        )
+
+        username = (
+            ask_new_admin_username()
+        )
+
+        while (
+                user_manager.is_reserved_username(
+                    username
+                )
+        ):
+            console.print(
+                (
+                    "[red]Reserved username.[/red]"
+                )
+            )
+
+            username = (
+                ask_new_admin_username()
+            )
+
+        password = (
+            ask_new_admin_password()
+        )
+
+        progress.start(
+            "Creating Admin User"
+        )
+
+        success = (
+            user_manager.create_admin_user(
+                username,
+                password,
+            )
+        )
+
+        progress.stop(
+            "Admin User Created"
+        )
+
+        from wizard.new_user_ssh_key import (
+            ask_new_user_ssh_key,
+        )
+
+        ssh_key_result = (
+            ask_new_user_ssh_key(
+                ssh,
+                username,
+            )
+        )
+
+        if ssh_key_result["configured"]:
+            console.print(
+                (
+                    f"[green]SSH key verified "
+                    f"for '{username}'.[/green]"
+                )
+            )
 
     progress.start(
         "Creating Backup"
@@ -253,11 +332,24 @@ try:
     )
 
     firewall_status = ""
-
     if (
+            firewall_options["action"]
+            == "Keep Current Configuration"
+    ):
+
+        firewall_status = (
+            hardening.ufw.status()
+        )
+
+        server_info.firewall_status = (
+            firewall_status
+        )
+
+    elif (
         firewall_options["action"]
         == "Enable Firewall"
     ):
+
 
         progress.start(
             "Configuring Firewall"
@@ -273,23 +365,35 @@ try:
             hardening.ufw.status()
         )
 
+        server_info.firewall_status = (
+            firewall_status
+        )
+
         progress.stop(
             "Firewall Configured"
         )
 
     elif (
-        firewall_options["action"]
-        == "Disable Firewall"
+            firewall_options["action"]
+            == "Disable Firewall"
     ):
 
         progress.start(
             "Disabling Firewall"
         )
 
-        hardening.disable_firewall()
+        hardening.disable_firewall(
+            remove_rules=firewall_options[
+                "remove_rules"
+            ]
+        )
 
         firewall_status = (
             hardening.ufw.status()
+        )
+
+        server_info.firewall_status = (
+            firewall_status
         )
 
         progress.stop(
@@ -302,10 +406,23 @@ try:
         )
     )
 
-    if (
+    action = (
         fail2ban_options["action"]
-        == "Install / Enable"
-    ):
+    )
+
+    if action == "Install Only":
+
+        progress.start(
+            "Installing Fail2Ban"
+        )
+
+        hardening.install_fail2ban()
+
+        progress.stop(
+            "Fail2Ban Installed"
+        )
+
+    elif action == "Install and Enable":
 
         progress.start(
             "Configuring Fail2Ban"
@@ -317,21 +434,53 @@ try:
             "Fail2Ban Enabled"
         )
 
-    else:
+    elif action == "Enable":
 
-        if (
-            server_info.fail2ban_installed
-        ):
+        progress.start(
+            "Enabling Fail2Ban"
+        )
 
-            progress.start(
-                "Removing Fail2Ban"
-            )
+        hardening.enable_fail2ban()
 
-            hardening.uninstall_fail2ban()
+        progress.stop(
+            "Fail2Ban Enabled"
+        )
 
-            progress.stop(
-                "Fail2Ban Removed"
-            )
+    elif action == "Disable Only":
+
+        progress.start(
+            "Disabling Fail2Ban"
+        )
+
+        hardening.disable_fail2ban()
+
+        progress.stop(
+            "Fail2Ban Disabled"
+        )
+
+    elif action == "Uninstall (Keep Config)":
+
+        progress.start(
+            "Removing Fail2Ban"
+        )
+
+        hardening.uninstall_fail2ban()
+
+        progress.stop(
+            "Fail2Ban Removed"
+        )
+
+    elif action == "Uninstall Completely":
+
+        progress.start(
+            "Purging Fail2Ban"
+        )
+
+        hardening.purge_fail2ban()
+
+        progress.stop(
+            "Fail2Ban Purged"
+        )
 
     progress.start(
         "Generating Summary"

@@ -129,14 +129,28 @@ def build_timestamped_key_path(
         "%Y%m%d_%H%M%S"
     )
 
+    parts = key_path.name.split("_")
+
+    while (
+        len(parts) >= 3
+        and len(parts[-2]) == 8
+        and len(parts[-1]) == 6
+        and parts[-2].isdigit()
+        and parts[-1].isdigit()
+    ):
+        parts = parts[:-2]
+
+    base_name = "_".join(parts)
+
     return key_path.with_name(
-        f"{key_path.name}_{timestamp}"
+        f"{base_name}_{timestamp}"
     )
 
 
 def setup_ssh_key(
     ssh: SSHManager,
     key_path: Path,
+    remote_user: str | None = None,
     force_regenerate: bool = False,
 ):
 
@@ -162,14 +176,20 @@ def setup_ssh_key(
             actual_key_path
         )
 
+    target_user = (
+            remote_user
+            or ssh.username
+    )
+
     manager.upload_public_key_to_server(
         actual_key_path,
-        ssh.username,
+        target_user,
     )
 
     verified = (
         manager.verify_key_login(
-            actual_key_path
+            actual_key_path,
+            username=target_user,
         )
     )
 
