@@ -138,3 +138,26 @@ class BackupManager:
                     return False
 
         return True
+
+    def list_backups(self):
+
+        output, error, exit_code = (
+            self.ssh.execute_sudo(
+                f"ls -1 {BACKUP_BASE_PATH}"
+            )
+        )
+
+        if exit_code != 0:
+            raise RuntimeError(
+                f"Failed listing backups: {error}"
+            )
+
+        backups = [
+            item.strip()
+            for item in output.splitlines()
+            if item.strip()
+        ]
+
+        backups.sort(reverse=True)
+
+        return backups

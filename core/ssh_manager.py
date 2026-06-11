@@ -140,10 +140,7 @@ class SSHManager:
             exit_code,
         )
 
-    def execute_sudo(
-            self,
-            command: str,
-    ):
+    def execute_sudo(self, command: str):
 
         if not self.client:
             raise RuntimeError(
@@ -157,7 +154,8 @@ class SSHManager:
         stdin, stdout, stderr = (
             self.client.exec_command(
                 sudo_command,
-                timeout=15,
+                get_pty=True,
+                timeout=30,
             )
         )
 
@@ -165,47 +163,42 @@ class SSHManager:
             stdin.write(
                 self.password + "\n"
             )
+
             stdin.flush()
 
-            stdin.channel.shutdown_write()
+        exit_code = (
+            stdout.channel.recv_exit_status()
+        )
 
-        try:
+        output = (
+            stdout.read()
+            .decode(
+                errors="ignore"
+            )
+        )
 
-            exit_code = (
-                stdout.channel.recv_exit_status()
+        error = (
+            stderr.read()
+            .decode(
+                errors="ignore"
+            )
+        )
+
+        # حذف echo شدن پسورد از خروجی
+        if self.password:
+            output = output.replace(
+                self.password,
+                ""
             )
 
-            output = (
-                stdout.read()
-                .decode()
-                .strip()
+            error = error.replace(
+                self.password,
+                ""
             )
 
-            error = (
-                stderr.read()
-                .decode()
-                .strip()
-            )
+        output = output.strip()
 
-        except Exception as e:
-
-            raise RuntimeError(
-                (
-                    "Sudo command timed out. "
-                    "Possible causes: invalid sudo password "
-                    "or sudo waiting for input."
-                )
-            ) from e
-
-        if (
-                "incorrect password" in error.lower()
-                or "authentication failure" in error.lower()
-                or "sorry, try again" in error.lower()
-                or "sudo:" in error.lower()
-        ):
-            raise RuntimeError(
-                "Invalid sudo password."
-            )
+        error = error.strip()
 
         return (
             output,

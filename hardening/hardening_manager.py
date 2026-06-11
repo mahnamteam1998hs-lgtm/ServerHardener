@@ -1,6 +1,7 @@
 from hardening.ufw_manager import UFWManager
 from hardening.fail2ban_manager import Fail2BanManager
-
+from core.restore_manager import RestoreManager
+from core.backup_manager import BackupManager
 
 class HardeningManager:
 
@@ -13,6 +14,13 @@ class HardeningManager:
 
         self.fail2ban = Fail2BanManager(
             ssh_manager
+        )
+
+        self.backup_manager = BackupManager(ssh_manager)
+
+        self.restore = RestoreManager(
+            ssh_manager,
+            self.backup_manager
         )
 
     # -------------------------
@@ -242,3 +250,13 @@ class HardeningManager:
             )
 
         return success
+
+    # -------------------------
+    # Restore System
+    # -------------------------
+
+    def restore_system(self, backup_path: str):
+
+        result = self.restore.full_restore(backup_path)
+
+        return "System restored successfully"
