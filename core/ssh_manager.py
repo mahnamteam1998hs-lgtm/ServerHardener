@@ -284,3 +284,24 @@ class SSHManager:
             self.client.close()
 
             self.client = None
+
+    def write_remote_file_sudo(
+            self,
+            remote_path: str,
+            content: str,
+    ) -> None:
+
+        temp_path = "/tmp/server-hardener-temp"
+
+        self.write_remote_file(
+            temp_path,
+            content,
+        )
+
+        self.execute_sudo(
+            f"cp {temp_path} {remote_path}"
+        )
+
+        self.execute_sudo(
+            f"rm -f {temp_path}"
+        )

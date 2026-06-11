@@ -18,13 +18,8 @@ def ask_connection():
         "Username:"
     ).ask()
 
-    password = questionary.password(
-        "Password:"
-    ).ask()
-
     return {
         "host": host.strip(),
         "port": int(port.strip()),
         "username": username.strip(),
-        "password": password,
     }

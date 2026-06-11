@@ -1,3 +1,4 @@
+from textwrap import dedent
 class Fail2BanManager:
 
     def __init__(self, ssh_manager):
@@ -137,6 +138,26 @@ class Fail2BanManager:
 
         return True
 
+    def configure_ssh_jail(self) -> bool:
+
+        jail_content = dedent("""
+            [sshd]
+            enabled = true
+            port = ssh
+            backend = systemd
+
+            maxretry = 5
+            findtime = 10m
+            bantime = 1h
+        """).strip()
+
+        self.ssh.write_remote_file_sudo(
+            "/etc/fail2ban/jail.d/server-hardener.conf",
+            jail_content,
+        )
+
+        return True
+
     def status(self) -> str:
 
         output, error, exit_code = (
@@ -151,3 +172,18 @@ class Fail2BanManager:
             )
 
         return output.strip()
+
+    def restart(self) -> bool:
+
+        output, error, exit_code = (
+            self.ssh.execute_sudo(
+                "systemctl restart fail2ban"
+            )
+        )
+
+        if exit_code != 0:
+            raise RuntimeError(
+                f"Failed restarting Fail2Ban: {error}"
+            )
+
+        return True

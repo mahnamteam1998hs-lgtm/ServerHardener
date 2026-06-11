@@ -95,12 +95,15 @@ class HardeningManager:
     def enable_fail2ban(self):
 
         if not self.fail2ban.is_installed():
-
             self.fail2ban.install()
+
+        self.fail2ban.configure_ssh_jail()
 
         self.fail2ban.enable()
 
         self.fail2ban.start()
+
+        self.fail2ban.restart()
 
         self.server_info.fail2ban_installed = True
 

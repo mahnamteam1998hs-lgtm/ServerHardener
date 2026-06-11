@@ -11,10 +11,16 @@ from core.progress_manager import ProgressManager
 from core.backup_manager import BackupManager
 from core.ssh_manager import SSHManager
 from core.server_detector import ServerDetector
+from core.sudo_validator import (
+    validate_sudo,
+)
 from core.user_settings import UserSettings
 from hardening.hardening_manager import HardeningManager
 from hardening.ssh_key_manager import SSHKeyManager
 from wizard.connection import ask_connection
+from wizard.sudo_password import (
+    ask_sudo_password,
+)
 from wizard.summary import show_summary
 from wizard.firewall import ask_firewall_options
 from wizard.fail2ban import ask_fail2ban_options
@@ -34,6 +40,10 @@ console.print(
 
 connection = ask_connection()
 
+sudo_password = (
+    ask_sudo_password()
+)
+
 settings = UserSettings()
 
 saved_key_path = settings.get_key_path(
@@ -46,7 +56,7 @@ ssh = SSHManager(
     connection["host"],
     connection["port"],
     connection["username"],
-    password=connection["password"],
+    password=sudo_password,
     private_key_path=saved_key_path,
 )
 
@@ -61,6 +71,45 @@ try:
     progress.stop(
         "Connected"
     )
+
+    sudo_valid = False
+
+    for attempt in range(3):
+
+        try:
+
+            validate_sudo(ssh)
+
+            sudo_valid = True
+
+            break
+
+        except RuntimeError:
+
+            if attempt == 2:
+                raise RuntimeError(
+                    "Invalid sudo password."
+                )
+
+            console.print(
+                (
+                    f"[yellow]Invalid sudo password "
+                    f"({attempt + 1}/3)[/yellow]"
+                )
+            )
+
+            sudo_password = (
+                ask_sudo_password()
+            )
+
+            ssh.password = (
+                sudo_password
+            )
+
+    if not sudo_valid:
+        raise RuntimeError(
+            "Invalid sudo password."
+        )
 
     settings = UserSettings()
 
@@ -191,15 +240,18 @@ try:
     )
 
     try:
-        progress.start("Detecting Server")
 
         server_info = detector.detect()
 
-        progress.stop("Server Detected")
+        progress.stop(
+            "Server Detected"
+        )
 
     except RuntimeError as e:
 
-        progress.stop("Detection Failed")
+        progress.stop(
+            "Detection Failed"
+        )
 
         console.print(
             f"[red]Error during detection:[/red] {e}"
@@ -208,10 +260,6 @@ try:
         ssh.disconnect()
 
         exit(1)
-
-    progress.stop(
-        "Server Detected"
-    )
 
     hardening = HardeningManager(
         ssh,
@@ -231,11 +279,6 @@ try:
 
     server_info.ssh_key_verified = (
         ssh_key_verified
-    )
-
-    print(
-        "DEBUG:",
-        server_info.ssh_key_verified
     )
 
     user_options = (
