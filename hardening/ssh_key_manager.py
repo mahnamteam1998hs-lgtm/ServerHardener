@@ -251,6 +251,14 @@ class SSHKeyManager:
             f"chmod 600 {authorized_keys}"
         )
 
+        self.ssh.execute_sudo(
+            (
+                f"chown -R "
+                f"{remote_user}:{remote_user} "
+                f"{ssh_dir}"
+            )
+        )
+
     def verify_key_login(
             self,
             private_key_path: Path,

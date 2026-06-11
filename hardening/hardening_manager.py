@@ -153,3 +153,89 @@ class HardeningManager:
         self.server_info.fail2ban_active = False
 
         return "Fail2Ban purged"
+
+    def disable_root_login(self):
+
+        self.ssh.execute_sudo(
+            (
+                r"sed -i "
+                r"'s/^#\?PermitRootLogin.*/PermitRootLogin no/' "
+                r"/etc/ssh/sshd_config"
+            )
+        )
+
+        self.ssh.execute_sudo(
+            "sshd -t"
+        )
+
+        self.ssh.execute_sudo(
+            "systemctl restart ssh"
+        )
+
+        output, _, _ = (
+            self.ssh.execute_sudo(
+                "sshd -T | grep '^permitrootlogin'"
+            )
+        )
+
+        self.server_info.root_login_enabled = (
+            False
+        )
+
+        return (
+                "permitrootlogin no"
+                in output.lower()
+        )
+
+    def disable_password_login(self):
+
+        # Main sshd_config
+        self.ssh.execute_sudo(
+            (
+                r"sed -i "
+                r"'s/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "
+                r"/etc/ssh/sshd_config"
+            )
+        )
+
+        # Override files (Ubuntu 24 cloud-init etc.)
+        self.ssh.execute_sudo(
+            (
+                r"find /etc/ssh/sshd_config.d "
+                r"-type f "
+                r"-exec sed -i "
+                r"'s/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "
+                r"{} \;"
+            )
+        )
+
+        output, error, exit_code = (
+            self.ssh.execute_sudo(
+                "sshd -t"
+            )
+        )
+
+        if exit_code != 0:
+            return False
+
+        self.ssh.execute_sudo(
+            "systemctl restart ssh"
+        )
+
+        output, _, _ = (
+            self.ssh.execute_sudo(
+                "sshd -T | grep '^passwordauthentication'"
+            )
+        )
+
+        success = (
+                "passwordauthentication no"
+                in output.lower()
+        )
+
+        if success:
+            self.server_info.password_login_enabled = (
+                False
+            )
+
+        return success

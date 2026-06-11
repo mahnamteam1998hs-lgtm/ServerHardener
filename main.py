@@ -1,16 +1,19 @@
 from pathlib import Path
+from wizard.root_login import (
+    ask_disable_root_login,
+)
+from wizard.password_login import (
+    ask_disable_password_login,
+)
 
 from rich.console import Console
-
 from core.progress_manager import ProgressManager
 from core.backup_manager import BackupManager
 from core.ssh_manager import SSHManager
 from core.server_detector import ServerDetector
 from core.user_settings import UserSettings
-
 from hardening.hardening_manager import HardeningManager
 from hardening.ssh_key_manager import SSHKeyManager
-
 from wizard.connection import ask_connection
 from wizard.summary import show_summary
 from wizard.firewall import ask_firewall_options
@@ -31,11 +34,20 @@ console.print(
 
 connection = ask_connection()
 
+settings = UserSettings()
+
+saved_key_path = settings.get_key_path(
+    connection["host"],
+    connection["port"],
+    connection["username"],
+)
+
 ssh = SSHManager(
     connection["host"],
     connection["port"],
     connection["username"],
-    connection["password"],
+    password=connection["password"],
+    private_key_path=saved_key_path,
 )
 
 try:
@@ -49,15 +61,6 @@ try:
     progress.stop(
         "Connected"
     )
-
-    output, error, exit_code = ssh.execute(
-        "sudo -n true"
-    )
-
-    if exit_code != 0:
-        raise RuntimeError(
-            "Passwordless sudo is required."
-        )
 
     settings = UserSettings()
 
@@ -193,6 +196,11 @@ try:
         "Server Detected"
     )
 
+    hardening = HardeningManager(
+        ssh,
+        server_info,
+    )
+
     from core.user_manager import UserManager
     from wizard.user_management import (
         ask_user_management,
@@ -206,6 +214,11 @@ try:
 
     server_info.ssh_key_verified = (
         ssh_key_verified
+    )
+
+    print(
+        "DEBUG:",
+        server_info.ssh_key_verified
     )
 
     user_options = (
@@ -280,6 +293,74 @@ try:
                 )
             )
 
+    if ssh_key_verified:
+
+        console.print(
+            "\n[bold cyan]SSH Hardening[/bold cyan]\n"
+        )
+
+        disable_root = (
+            ask_disable_root_login()
+        )
+
+        if disable_root:
+
+            progress.start(
+                "Disabling Root Login"
+            )
+
+            success = (
+                hardening.disable_root_login()
+            )
+
+            progress.stop(
+                (
+                    "Root Login Disabled"
+                    if success
+                    else "Failed"
+                )
+            )
+
+            if success:
+                console.print(
+                    (
+                        "[green]Root login "
+                        "disabled successfully."
+                        "[/green]"
+                    )
+                )
+
+        disable_password = (
+            ask_disable_password_login()
+        )
+
+        if disable_password:
+
+            progress.start(
+                "Disabling Password Login"
+            )
+
+            success = (
+                hardening.disable_password_login()
+            )
+
+            progress.stop(
+                (
+                    "Password Login Disabled"
+                    if success
+                    else "Failed"
+                )
+            )
+
+            if success:
+                console.print(
+                    (
+                        "[green]Password login "
+                        "disabled successfully."
+                        "[/green]"
+                    )
+                )
+
     progress.start(
         "Creating Backup"
     )
@@ -318,11 +399,6 @@ try:
 
     console.print(
         f"[green]Backup Verified:[/green] {backup_verified}"
-    )
-
-    hardening = HardeningManager(
-        ssh,
-        server_info,
     )
 
     firewall_options = (

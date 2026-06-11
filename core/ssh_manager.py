@@ -58,15 +58,39 @@ class SSHManager:
                 timeout=10,
             )
 
+
         elif self.password:
 
-            self.client.connect(
-                hostname=self.host,
-                port=self.port,
-                username=self.username,
-                password=self.password,
-                timeout=10,
-            )
+            try:
+
+                self.client.connect(
+
+                    hostname=self.host,
+
+                    port=self.port,
+
+                    username=self.username,
+
+                    password=self.password,
+
+                    timeout=10,
+
+                )
+
+
+            except paramiko.ssh_exception.BadAuthenticationType:
+
+                raise RuntimeError(
+
+                    (
+
+                        "Password authentication is disabled "
+
+                        "on the server. Use SSH key authentication."
+
+                    )
+
+                )
 
         else:
 
@@ -117,12 +141,52 @@ class SSHManager:
         )
 
     def execute_sudo(
-        self,
-        command: str,
+            self,
+            command: str,
     ):
 
-        return self.execute(
-            f"sudo {command}"
+        if not self.client:
+            raise RuntimeError(
+                "SSH client not connected."
+            )
+
+        sudo_command = (
+            f"sudo -S -p '' {command}"
+        )
+
+        stdin, stdout, stderr = (
+            self.client.exec_command(
+                sudo_command
+            )
+        )
+
+        if self.password:
+            stdin.write(
+                self.password + "\n"
+            )
+
+            stdin.flush()
+
+        output = (
+            stdout.read()
+            .decode()
+            .strip()
+        )
+
+        error = (
+            stderr.read()
+            .decode()
+            .strip()
+        )
+
+        exit_code = (
+            stdout.channel.recv_exit_status()
+        )
+
+        return (
+            output,
+            error,
+            exit_code,
         )
 
     def read_remote_file(
