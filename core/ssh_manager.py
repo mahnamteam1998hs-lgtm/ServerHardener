@@ -156,7 +156,8 @@ class SSHManager:
 
         stdin, stdout, stderr = (
             self.client.exec_command(
-                sudo_command
+                sudo_command,
+                timeout=15,
             )
         )
 
@@ -164,24 +165,47 @@ class SSHManager:
             stdin.write(
                 self.password + "\n"
             )
-
             stdin.flush()
 
-        output = (
-            stdout.read()
-            .decode()
-            .strip()
-        )
+            stdin.channel.shutdown_write()
 
-        error = (
-            stderr.read()
-            .decode()
-            .strip()
-        )
+        try:
 
-        exit_code = (
-            stdout.channel.recv_exit_status()
-        )
+            exit_code = (
+                stdout.channel.recv_exit_status()
+            )
+
+            output = (
+                stdout.read()
+                .decode()
+                .strip()
+            )
+
+            error = (
+                stderr.read()
+                .decode()
+                .strip()
+            )
+
+        except Exception as e:
+
+            raise RuntimeError(
+                (
+                    "Sudo command timed out. "
+                    "Possible causes: invalid sudo password "
+                    "or sudo waiting for input."
+                )
+            ) from e
+
+        if (
+                "incorrect password" in error.lower()
+                or "authentication failure" in error.lower()
+                or "sorry, try again" in error.lower()
+                or "sudo:" in error.lower()
+        ):
+            raise RuntimeError(
+                "Invalid sudo password."
+            )
 
         return (
             output,

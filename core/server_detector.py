@@ -10,173 +10,125 @@ class ServerDetector:
 
         info = ServerInfo()
 
-        # Hostname
+        try:
 
-        hostname, _, _ = self.ssh.execute(
-            "hostname"
-        )
+            # Hostname
+            hostname, _, _ = self.ssh.execute(
+                "hostname"
+            )
+            info.hostname = hostname.strip()
 
-        info.hostname = hostname.strip()
+            # Ubuntu version
+            ubuntu_version, _, _ = self.ssh.execute(
+                "lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME"
+            )
+            info.ubuntu_version = ubuntu_version.strip()
 
-        # Ubuntu version
+            # Current user
+            current_user, _, _ = self.ssh.execute(
+                "whoami"
+            )
+            info.current_user = current_user.strip()
 
-        ubuntu_version, _, _ = self.ssh.execute(
-            "lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME"
-        )
-
-        info.ubuntu_version = (
-            ubuntu_version.strip()
-        )
-
-        # Current user
-
-        current_user, _, _ = self.ssh.execute(
-            "whoami"
-        )
-
-        info.current_user = (
-            current_user.strip()
-        )
-
-        # SSH port
-
-        ssh_port, _, _ = (
-            self.ssh.execute_sudo(
+            # SSH port (safe fallback)
+            ssh_port, _, exit_code = self.ssh.execute_sudo(
                 r"sshd -T 2>/dev/null | grep '^port ' | awk '{print $2}'"
             )
-        )
 
-        if ssh_port.isdigit():
+            if exit_code == 0 and ssh_port.strip().isdigit():
+                info.ssh_port = int(ssh_port.strip())
 
-            info.ssh_port = int(
-                ssh_port
-            )
-
-        # SSH service
-
-        ssh_service, _, _ = (
-            self.ssh.execute(
+            # SSH service
+            ssh_service, _, _ = self.ssh.execute(
                 "systemctl is-active ssh"
             )
-        )
 
-        info.ssh_service_active = (
-            ssh_service.strip()
-            == "active"
-        )
+            info.ssh_service_active = (
+                    ssh_service.strip() == "active"
+            )
 
-        # Root login
-
-        root_login, _, _ = (
-            self.ssh.execute_sudo(
+            # Root login
+            root_login, _, exit_code = self.ssh.execute_sudo(
                 "sshd -T | grep '^permitrootlogin'"
             )
-        )
 
-        password_login, _, _ = (
-            self.ssh.execute_sudo(
+            if exit_code == 0:
+                info.root_login_enabled = "yes" in root_login.lower()
+            else:
+                info.root_login_enabled = False
+
+            # Password login
+            password_login, _, exit_code = self.ssh.execute_sudo(
                 "sshd -T | grep '^passwordauthentication'"
             )
-        )
 
-        info.root_login_enabled = (
-            "yes"
-            in root_login.lower()
-        )
+            if exit_code == 0:
+                info.password_login_enabled = "yes" in password_login.lower()
+            else:
+                info.password_login_enabled = False
 
-        info.password_login_enabled = (
-            "yes"
-            in password_login.lower()
-        )
-
-        # Firewall
-
-        ufw_status, _, _ = (
-            self.ssh.execute_sudo(
+            # Firewall
+            ufw_status, _, _ = self.ssh.execute_sudo(
                 "ufw status | head -1"
             )
-        )
 
-        info.firewall_enabled = (
-            ufw_status.strip().lower()
-            == "status: active"
-        )
+            info.firewall_enabled = (
+                    ufw_status.strip().lower() == "status: active"
+            )
 
-        info.firewall_configured = False
+            info.firewall_configured = False
+            info.firewall_status = ""
 
-        info.firewall_status = ""
-
-        # Fail2Ban
-
-        _, _, exit_code = (
-            self.ssh.execute(
+            # Fail2Ban
+            _, _, exit_code = self.ssh.execute(
                 "command -v fail2ban-client"
             )
-        )
 
-        info.fail2ban_installed = (
-            exit_code == 0
-        )
+            info.fail2ban_installed = (exit_code == 0)
 
-        fail2ban_active, _, _ = (
-            self.ssh.execute(
+            fail2ban_active, _, _ = self.ssh.execute(
                 "systemctl is-active fail2ban"
             )
-        )
 
-        info.fail2ban_active = (
-            fail2ban_active.strip()
-            == "active"
-        )
+            info.fail2ban_active = (
+                    fail2ban_active.strip() == "active"
+            )
 
-        # SSH Key
+            # SSH Key
+            info.ssh_key_enabled = False
+            info.ssh_key_verified = False
 
-        info.ssh_key_enabled = False
+            # Backup
+            info.backup_path = ""
+            info.backup_created = False
+            info.backup_verified = False
 
-        info.ssh_key_verified = False
-
-        # Backup
-
-        info.backup_path = ""
-
-        info.backup_created = False
-
-        info.backup_verified = False
-
-        users_output, _, _ = self.ssh.execute(
-            r"getent passwd | awk -F: '$7 !~ /(nologin|false)$/ {print $1}'"
-        )
-
-        info.users = [
-            user.strip()
-            for user in users_output.splitlines()
-            if user.strip()
-        ]
-
-        # Users
-
-        users_output, _, _ = (
-            self.ssh.execute(
+            # Users
+            users_output, _, _ = self.ssh.execute(
                 r"getent passwd | awk -F: '$7 !~ /(nologin|false)$/ {print $1}'"
             )
-        )
 
-        info.users = [
-            user.strip()
-            for user in users_output.splitlines()
-            if user.strip()
-        ]
+            info.users = [
+                user.strip()
+                for user in users_output.splitlines()
+                if user.strip()
+            ]
 
-        admin_users_output, _, _ = (
-            self.ssh.execute(
+            admin_users_output, _, _ = self.ssh.execute(
                 "getent group sudo | cut -d: -f4"
             )
-        )
 
-        info.admin_users = [
-            user.strip()
-            for user in admin_users_output.split(",")
-            if user.strip()
-        ]
+            info.admin_users = [
+                user.strip()
+                for user in admin_users_output.split(",")
+                if user.strip()
+            ]
 
-        return info
+            return info
+
+        except RuntimeError as e:
+
+            # مهم‌ترین تغییر اینجاست
+            raise RuntimeError(
+                f"Server detection failed: {e}"
+            )

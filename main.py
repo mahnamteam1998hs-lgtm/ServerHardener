@@ -190,7 +190,24 @@ try:
         ssh
     )
 
-    server_info = detector.detect()
+    try:
+        progress.start("Detecting Server")
+
+        server_info = detector.detect()
+
+        progress.stop("Server Detected")
+
+    except RuntimeError as e:
+
+        progress.stop("Detection Failed")
+
+        console.print(
+            f"[red]Error during detection:[/red] {e}"
+        )
+
+        ssh.disconnect()
+
+        exit(1)
 
     progress.stop(
         "Server Detected"
@@ -579,6 +596,21 @@ try:
         console.print(
             f"\n{firewall_status}"
         )
+
+except RuntimeError as e:
+
+    try:
+        progress.stop(
+            "Failed"
+        )
+    except Exception:
+        pass
+
+    console.print()
+
+    console.print(
+        f"[red]Error:[/red] {e}"
+    )
 
 finally:
 
