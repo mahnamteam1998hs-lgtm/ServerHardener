@@ -1,4 +1,21 @@
 from pathlib import Path
+from config.settings import (
+    BACKUP_BASE_PATH,
+)
+
+from wizard.restore import (
+    ask_backup_selection,
+    ask_restore_components,
+    confirm_restore,
+)
+
+from wizard.restore import (
+    ask_backup_selection,
+    ask_restore_components,
+)
+
+
+import questionary
 from wizard.root_login import (
     ask_disable_root_login,
 )
@@ -37,6 +54,18 @@ console = Console()
 console.print(
     "[bold green]Ubuntu Server Hardening Wizard[/bold green]"
 )
+
+action = questionary.select(
+    "Operation",
+    choices=[
+        "Hardening",
+        "Restore Backup",
+        "Exit",
+    ],
+).ask()
+
+if action == "Exit":
+    exit()
 
 connection = ask_connection()
 
@@ -265,6 +294,117 @@ try:
         ssh,
         server_info,
     )
+
+    if action == "Restore Backup":
+
+        backup_manager = BackupManager(
+            ssh
+        )
+
+        backups = (
+            backup_manager.list_backups()
+        )
+
+        if not backups:
+            console.print(
+                "[red]No backups found.[/red]"
+            )
+
+            exit()
+
+        backup_name = (
+            ask_backup_selection(
+                backups
+            )
+        )
+
+        components = (
+            ask_restore_components()
+        )
+
+        if not confirm_restore(
+                backup_name,
+                components,
+        ):
+            console.print(
+                "[yellow]Restore cancelled.[/yellow]"
+            )
+            exit()
+
+        restore_path = (
+            f"{BACKUP_BASE_PATH}/{backup_name}"
+        )
+
+        result = (
+            hardening.restore.full_restore(
+                backup_path=restore_path,
+                ssh=components["ssh"],
+                users=components["users"],
+                sudoers=components["sudoers"],
+            )
+        )
+
+        console.print()
+
+        if result["status"] == "success":
+
+            console.print(
+                "[bold green]✓ Restore completed successfully[/bold green]"
+            )
+
+            console.print()
+
+            console.print(
+                "[bold]Verification:[/bold]"
+            )
+
+            verify = result["verify"]
+
+            if verify.get("ssh_config"):
+                console.print(
+                    "[green]✓ SSH Configuration[/green]"
+                )
+
+            if verify.get("ssh_service"):
+                console.print(
+                    "[green]✓ SSH Service[/green]"
+                )
+
+            if verify.get("users"):
+                console.print(
+                    "[green]✓ Users[/green]"
+                )
+
+            if verify.get("sudoers"):
+                console.print(
+                    "[green]✓ Sudoers[/green]"
+                )
+
+            console.print()
+
+            console.print(
+                f"[cyan]Safety Snapshot:[/cyan] "
+                f"{result['snapshot']}"
+            )
+
+        else:
+
+            console.print(
+                "[bold red]✗ Restore failed[/bold red]"
+            )
+
+            console.print(
+                f"[red]{result['error']}[/red]"
+            )
+
+            console.print()
+
+            console.print(
+                f"[yellow]Rollback Snapshot:[/yellow] "
+                f"{result['snapshot']}"
+            )
+
+        exit()
 
     from core.user_manager import UserManager
     from wizard.user_management import (
