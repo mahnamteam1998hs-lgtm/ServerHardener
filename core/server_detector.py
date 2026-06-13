@@ -76,8 +76,52 @@ class ServerDetector:
                     ufw_status.strip().lower() == "status: active"
             )
 
-            info.firewall_configured = False
-            info.firewall_status = ""
+            # Firewall installed
+
+            _, _, exit_code = self.ssh.execute(
+                "command -v ufw"
+            )
+
+            info.firewall_installed = (
+                    exit_code == 0
+            )
+
+            # Firewall version
+
+            if info.firewall_installed:
+                version_output, _, _ = (
+                    self.ssh.execute(
+                        "ufw version | head -1"
+                    )
+                )
+
+                info.firewall_version = (
+                    version_output.strip()
+                )
+
+            # Firewall rules count
+
+            rules_output, _, _ = (
+                self.ssh.execute_sudo(
+                    "ufw status numbered"
+                )
+            )
+
+            info.firewall_rules_count = len(
+                [
+                    line
+                    for line in rules_output.splitlines()
+                    if line.strip().startswith("[")
+                ]
+            )
+
+            info.firewall_configured = (
+                    info.firewall_rules_count > 0
+            )
+            if info.firewall_enabled:
+                info.firewall_status = "Active"
+            else:
+                info.firewall_status = "Inactive"
 
             # Fail2Ban
             _, _, exit_code = self.ssh.execute(
@@ -86,16 +130,64 @@ class ServerDetector:
 
             info.fail2ban_installed = (exit_code == 0)
 
-            fail2ban_active, _, _ = self.ssh.execute(
-                "systemctl is-active fail2ban"
-            )
+            if info.fail2ban_installed:
+                version_output, _, _ = (
+                    self.ssh.execute(
+                        "fail2ban-client --version"
+                    )
+                )
 
-            info.fail2ban_active = (
-                    fail2ban_active.strip() == "active"
-            )
+                info.fail2ban_version = (
+                    version_output.strip()
+                )
+
+                fail2ban_active, _, _ = self.ssh.execute(
+                    "systemctl is-active fail2ban"
+                )
+
+                info.fail2ban_active = (
+                        fail2ban_active.strip() == "active"
+                )
+
+                if info.fail2ban_active:
+
+                    jail_output, _, _ = (
+                        self.ssh.execute(
+                            "fail2ban-client status"
+                        )
+                    )
+
+                    for line in jail_output.splitlines():
+
+                        if "Jail list:" in line:
+                            jail_text = (
+                                line.split(
+                                    "Jail list:"
+                                )[-1]
+                            )
+
+                            info.fail2ban_jails = [
+                                jail.strip()
+                                for jail in jail_text.split(",")
+                                if jail.strip()
+                            ]
+
+                            break
+
+
 
             # SSH Key
-            info.ssh_key_enabled = False
+            pubkey_output, _, exit_code = (
+                self.ssh.execute_sudo(
+                    "sshd -T | grep '^pubkeyauthentication'"
+                )
+            )
+
+            if exit_code == 0:
+                info.ssh_key_enabled = (
+                        "yes"
+                        in pubkey_output.lower()
+                )
             info.ssh_key_verified = False
 
             # Backup
